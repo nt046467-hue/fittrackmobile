@@ -1,0 +1,43 @@
+# Backend Python
+venv/
+env/
+ENV/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.coverage
+.pytest_cache/
+htmlcov/
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment
+.env
+.env.local
+.env.*.local
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.sw[op]
+*~
+.DS_Store
+
+# Vercel
+.vercel
+
+# Logs
+*.log
+logs/
+
+# OS
+Thumbs.db

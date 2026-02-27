@@ -1,0 +1,44 @@
+# Backend
+backend/venv/
+backend/.env
+backend/__pycache__/
+backend/*.pyc
+backend/database.db
+backend/.DS_Store
+backend/node_modules/
+backend/dist/
+
+# Mobile
+mobile/node_modules/
+mobile/.expo/
+mobile/dist/
+mobile/.env
+mobile/.env.local
+mobile/.env.production
+mobile/build/
+mobile/.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS
+Thumbs.db
+
+# General
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.env.local
+.env.*.local
+
+# Vercel
+.vercel
+out/
+.next/
+dist/

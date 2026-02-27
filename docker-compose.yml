@@ -1,0 +1,31 @@
+version: "3.8"
+
+services:
+  backend:
+    build: ./backend
+    container_name: fittrack-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=development
+      - JWT_SECRET_KEY=dev-secret-key-change-in-production
+      - DATABASE_URL=sqlite:///./fittrack.db
+      - ALLOWED_ORIGINS=http://localhost:19000,http://localhost:19001,http://localhost:3000
+    volumes:
+      - ./backend:/app
+      - backend_db:/app/data
+    command: uvicorn main:app --reload --host 0.0.0.0 --port 8000
+    networks:
+      - fittrack-network
+
+volumes:
+  backend_db:
+    driver: local
+
+networks:
+  fittrack-network:
+    driver: bridge
+
+# Usage: docker-compose up -d
+# Access API at: http://localhost:8000
+# API Docs at: http://localhost:8000/docs

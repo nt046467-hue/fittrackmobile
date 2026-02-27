@@ -1,0 +1,29 @@
+{
+  "buildCommand": "pip install -r requirements.txt",
+  "outputDirectory": ".",
+  "framework": "python",
+  "python": {
+    "version": "3.11"
+  },
+  "functions": {
+    "backend/main.py": {
+      "runtime": "python3.11"
+    }
+  },
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/backend/main.py"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/backend/main.py"
+    }
+  ],
+  "env": {
+    "JWT_SECRET_KEY": "@JWT_SECRET_KEY",
+    "DATABASE_URL": "@DATABASE_URL",
+    "ENVIRONMENT": "production"
+  },
+  "regions": ["iad1"]
+}
