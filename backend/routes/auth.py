@@ -1,7 +1,9 @@
 from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 from database import get_db
 from auth_utils import hash_password, verify_password, create_token, get_current_user
+from models import User
 
 router = APIRouter()
 
@@ -28,86 +30,92 @@ class UpdateProfileRequest(BaseModel):
     age: int = None
 
 @router.post("/register")
-def register(req: RegisterRequest):
-    db = get_db()
-    existing = db.execute("SELECT id FROM users WHERE email = ?", (req.email,)).fetchone()
+def register(req: RegisterRequest, db: Session = Depends(get_db)):
+    existing = db.query(User).filter(User.email == req.email).first()
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
 
     hashed = hash_password(req.password)
-    cursor = db.execute(
-        "INSERT INTO users (name, email, password_hash, goal, fitness_level, weight, height, age) VALUES (?,?,?,?,?,?,?,?)",
-        (req.name, req.email, hashed, req.goal, req.fitness_level, req.weight, req.height, req.age)
+    user = User(
+        name=req.name,
+        email=req.email,
+        password_hash=hashed,
+        goal=req.goal,
+        fitness_level=req.fitness_level,
+        weight=req.weight,
+        height=req.height,
+        age=req.age
     )
+    db.add(user)
     db.commit()
-    user_id = cursor.lastrowid
-    token = create_token(user_id, req.email)
-    db.close()
+    db.refresh(user)
+    
+    token = create_token(user.id, user.email)
 
     return {
         "token": token,
         "user": {
-            "id": user_id,
-            "name": req.name,
-            "email": req.email,
-            "goal": req.goal,
-            "fitness_level": req.fitness_level
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "goal": user.goal,
+            "fitness_level": user.fitness_level
         }
     }
 
 @router.post("/login")
-def login(req: LoginRequest):
-    db = get_db()
-    user = db.execute("SELECT * FROM users WHERE email = ?", (req.email,)).fetchone()
-    if not user or not verify_password(req.password, user["password_hash"]):
+def login(req: LoginRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == req.email).first()
+    if not user or not verify_password(req.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    token = create_token(user["id"], user["email"])
-    db.close()
+    token = create_token(user.id, user.email)
 
     return {
         "token": token,
         "user": {
-            "id": user["id"],
-            "name": user["name"],
-            "email": user["email"],
-            "goal": user["goal"],
-            "fitness_level": user["fitness_level"],
-            "weight": user["weight"],
-            "height": user["height"],
-            "age": user["age"]
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "goal": user.goal,
+            "fitness_level": user.fitness_level,
+            "weight": user.weight,
+            "height": user.height,
+            "age": user.age
         }
     }
 
 @router.get("/me")
-def get_me(current_user: dict = Depends(get_current_user)):
-    db = get_db()
-    user = db.execute("SELECT * FROM users WHERE id = ?", (current_user["user_id"],)).fetchone()
-    db.close()
+def get_me(current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == current_user["user_id"]).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    
     return {
-        "id": user["id"],
-        "name": user["name"],
-        "email": user["email"],
-        "goal": user["goal"],
-        "fitness_level": user["fitness_level"],
-        "weight": user["weight"],
-        "height": user["height"],
-        "age": user["age"],
-        "created_at": user["created_at"]
+        "id": user.id,
+        "name": user.name,
+        "email": user.email,
+        "goal": user.goal,
+        "fitness_level": user.fitness_level,
+        "weight": user.weight,
+        "height": user.height,
+        "age": user.age,
+        "created_at": user.created_at
     }
 
 @router.put("/profile")
-def update_profile(req: UpdateProfileRequest, current_user: dict = Depends(get_current_user)):
-    db = get_db()
+def update_profile(req: UpdateProfileRequest, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == current_user["user_id"]).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
     fields = {k: v for k, v in req.dict().items() if v is not None}
     if not fields:
         raise HTTPException(status_code=400, detail="No fields to update")
 
-    set_clause = ", ".join(f"{k} = ?" for k in fields)
-    values = list(fields.values()) + [current_user["user_id"]]
-    db.execute(f"UPDATE users SET {set_clause} WHERE id = ?", values)
+    for key, value in fields.items():
+        setattr(user, key, value)
+    
     db.commit()
-    db.close()
+    db.refresh(user)
     return {"message": "Profile updated"}

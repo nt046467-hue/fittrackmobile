@@ -1,9 +1,12 @@
 from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.orm import Session
+from sqlalchemy import func
 from pydantic import BaseModel
 from typing import Optional
 from database import get_db
 from auth_utils import get_current_user
-from datetime import date
+from models import NutritionLog, User
+from datetime import datetime, timedelta
 
 router = APIRouter()
 
@@ -47,42 +50,45 @@ def get_foods(current_user: dict = Depends(get_current_user)):
     return FOOD_DATABASE
 
 @router.post("/log")
-def log_meal(req: LogMealRequest, current_user: dict = Depends(get_current_user)):
-    db = get_db()
-    cursor = db.execute(
-        "INSERT INTO nutrition_logs (user_id, meal_name, meal_type, calories, protein, carbs, fat, fiber) VALUES (?,?,?,?,?,?,?,?)",
-        (current_user["user_id"], req.meal_name, req.meal_type, req.calories,
-         req.protein, req.carbs, req.fat, req.fiber)
+def log_meal(req: LogMealRequest, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
+    log = NutritionLog(
+        user_id=current_user["user_id"],
+        meal_name=req.meal_name,
+        meal_type=req.meal_type,
+        calories=req.calories,
+        protein=req.protein,
+        carbs=req.carbs,
+        fat=req.fat,
+        fiber=req.fiber
     )
+    db.add(log)
     db.commit()
-    log_id = cursor.lastrowid
-    db.close()
-    return {"id": log_id, "message": "Meal logged successfully"}
+    db.refresh(log)
+    return {"id": log.id, "message": "Meal logged successfully"}
 
 @router.get("/today")
-def today_nutrition(current_user: dict = Depends(get_current_user)):
-    db = get_db()
-    rows = db.execute(
-        "SELECT * FROM nutrition_logs WHERE user_id = ? AND DATE(logged_at) = DATE('now') ORDER BY logged_at",
-        (current_user["user_id"],)
-    ).fetchall()
-    user = db.execute("SELECT goal FROM users WHERE id = ?", (current_user["user_id"],)).fetchone()
-    db.close()
-
-    goal = user["goal"] if user else "general_fitness"
+def today_nutrition(current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
+    today = datetime.utcnow().date()
+    rows = db.query(NutritionLog).filter(
+        NutritionLog.user_id == current_user["user_id"],
+        func.date(NutritionLog.logged_at) == today
+    ).order_by(NutritionLog.logged_at).all()
+    
+    user = db.query(User).filter(User.id == current_user["user_id"]).first()
+    goal = user.goal if user else "general_fitness"
     calorie_goal = CALORIE_GOALS.get(goal, 2200)
 
     meals = [
         {
-            "id": r["id"],
-            "meal_name": r["meal_name"],
-            "meal_type": r["meal_type"],
-            "calories": r["calories"],
-            "protein": r["protein"],
-            "carbs": r["carbs"],
-            "fat": r["fat"],
-            "fiber": r["fiber"],
-            "logged_at": r["logged_at"]
+            "id": r.id,
+            "meal_name": r.meal_name,
+            "meal_type": r.meal_type,
+            "calories": r.calories,
+            "protein": r.protein,
+            "carbs": r.carbs,
+            "fat": r.fat,
+            "fiber": r.fiber,
+            "logged_at": r.logged_at
         }
         for r in rows
     ]
@@ -103,30 +109,35 @@ def today_nutrition(current_user: dict = Depends(get_current_user)):
     }
 
 @router.delete("/log/{log_id}")
-def delete_meal(log_id: int, current_user: dict = Depends(get_current_user)):
-    db = get_db()
-    db.execute(
-        "DELETE FROM nutrition_logs WHERE id = ? AND user_id = ?",
-        (log_id, current_user["user_id"])
-    )
+def delete_meal(log_id: int, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
+    db.query(NutritionLog).filter(
+        NutritionLog.id == log_id,
+        NutritionLog.user_id == current_user["user_id"]
+    ).delete()
     db.commit()
-    db.close()
     return {"message": "Meal deleted"}
 
 @router.get("/weekly")
-def weekly_nutrition(current_user: dict = Depends(get_current_user)):
-    db = get_db()
-    rows = db.execute(
-        """SELECT DATE(logged_at) as day,
-           SUM(calories) as calories,
-           SUM(protein) as protein,
-           SUM(carbs) as carbs,
-           SUM(fat) as fat
-           FROM nutrition_logs
-           WHERE user_id = ? AND logged_at >= datetime('now', '-7 days')
-           GROUP BY DATE(logged_at)
-           ORDER BY day""",
-        (current_user["user_id"],)
-    ).fetchall()
-    db.close()
-    return [dict(r) for r in rows]
+def weekly_nutrition(current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
+    week_ago = datetime.utcnow() - timedelta(days=7)
+    rows = db.query(
+        func.date(NutritionLog.logged_at).label("day"),
+        func.sum(NutritionLog.calories).label("calories"),
+        func.sum(NutritionLog.protein).label("protein"),
+        func.sum(NutritionLog.carbs).label("carbs"),
+        func.sum(NutritionLog.fat).label("fat")
+    ).filter(
+        NutritionLog.user_id == current_user["user_id"],
+        NutritionLog.logged_at >= week_ago
+    ).group_by(func.date(NutritionLog.logged_at)).order_by(func.date(NutritionLog.logged_at)).all()
+    
+    return [
+        {
+            "day": str(r.day),
+            "calories": r.calories or 0,
+            "protein": r.protein or 0,
+            "carbs": r.carbs or 0,
+            "fat": r.fat or 0
+        }
+        for r in rows
+    ]

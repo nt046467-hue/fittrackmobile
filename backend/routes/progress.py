@@ -1,8 +1,12 @@
 from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.orm import Session
+from sqlalchemy import func
 from pydantic import BaseModel
 from typing import Optional
 from database import get_db
 from auth_utils import get_current_user
+from models import ProgressLog, Workout
+from datetime import datetime, timedelta
 
 router = APIRouter()
 
@@ -13,62 +17,66 @@ class LogProgressRequest(BaseModel):
     notes: Optional[str] = ""
 
 @router.post("/log")
-def log_progress(req: LogProgressRequest, current_user: dict = Depends(get_current_user)):
-    db = get_db()
-    cursor = db.execute(
-        "INSERT INTO progress_logs (user_id, weight, body_fat, muscle_mass, notes) VALUES (?,?,?,?,?)",
-        (current_user["user_id"], req.weight, req.body_fat, req.muscle_mass, req.notes)
+def log_progress(req: LogProgressRequest, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
+    log = ProgressLog(
+        user_id=current_user["user_id"],
+        weight=req.weight,
+        body_fat=req.body_fat,
+        muscle_mass=req.muscle_mass,
+        notes=req.notes
     )
+    db.add(log)
     db.commit()
-    db.close()
-    return {"id": cursor.lastrowid, "message": "Progress logged"}
+    db.refresh(log)
+    return {"id": log.id, "message": "Progress logged"}
 
 @router.get("/history")
-def progress_history(current_user: dict = Depends(get_current_user)):
-    db = get_db()
-    rows = db.execute(
-        "SELECT * FROM progress_logs WHERE user_id = ? ORDER BY logged_at DESC LIMIT 30",
-        (current_user["user_id"],)
-    ).fetchall()
-    db.close()
-    return [dict(r) for r in rows]
+def progress_history(current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
+    rows = db.query(ProgressLog).filter(
+        ProgressLog.user_id == current_user["user_id"]
+    ).order_by(ProgressLog.logged_at.desc()).limit(30).all()
+    
+    return [
+        {
+            "id": r.id,
+            "user_id": r.user_id,
+            "weight": r.weight,
+            "body_fat": r.body_fat,
+            "muscle_mass": r.muscle_mass,
+            "notes": r.notes,
+            "logged_at": r.logged_at
+        }
+        for r in rows
+    ]
 
 @router.get("/summary")
-def progress_summary(current_user: dict = Depends(get_current_user)):
-    db = get_db()
+def progress_summary(current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
+    latest = db.query(ProgressLog).filter(
+        ProgressLog.user_id == current_user["user_id"]
+    ).order_by(ProgressLog.logged_at.desc()).first()
 
-    latest = db.execute(
-        "SELECT * FROM progress_logs WHERE user_id = ? ORDER BY logged_at DESC LIMIT 1",
-        (current_user["user_id"],)
-    ).fetchone()
+    first = db.query(ProgressLog).filter(
+        ProgressLog.user_id == current_user["user_id"]
+    ).order_by(ProgressLog.logged_at.asc()).first()
 
-    first = db.execute(
-        "SELECT * FROM progress_logs WHERE user_id = ? ORDER BY logged_at ASC LIMIT 1",
-        (current_user["user_id"],)
-    ).fetchone()
+    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+    workout_streak = db.query(func.count(func.distinct(func.date(Workout.completed_at)))).filter(
+        Workout.user_id == current_user["user_id"],
+        Workout.completed_at >= thirty_days_ago
+    ).scalar()
 
-    workout_streak = db.execute(
-        """SELECT COUNT(DISTINCT DATE(completed_at)) as streak
-           FROM workouts WHERE user_id = ?
-           AND completed_at >= datetime('now', '-30 days')""",
-        (current_user["user_id"],)
-    ).fetchone()
-
-    total_workouts = db.execute(
-        "SELECT COUNT(*) as cnt FROM workouts WHERE user_id = ?",
-        (current_user["user_id"],)
-    ).fetchone()
-
-    db.close()
+    total_workouts = db.query(func.count(Workout.id)).filter(
+        Workout.user_id == current_user["user_id"]
+    ).scalar()
 
     weight_change = None
-    if latest and first and latest["id"] != first["id"] and latest["weight"] and first["weight"]:
-        weight_change = round(latest["weight"] - first["weight"], 1)
+    if latest and first and latest.id != first.id and latest.weight and first.weight:
+        weight_change = round(latest.weight - first.weight, 1)
 
     return {
-        "current_weight": latest["weight"] if latest else None,
-        "current_body_fat": latest["body_fat"] if latest else None,
+        "current_weight": latest.weight if latest else None,
+        "current_body_fat": latest.body_fat if latest else None,
         "weight_change": weight_change,
-        "workout_streak": workout_streak["streak"] if workout_streak else 0,
-        "total_workouts": total_workouts["cnt"] if total_workouts else 0,
+        "workout_streak": workout_streak or 0,
+        "total_workouts": total_workouts or 0,
     }

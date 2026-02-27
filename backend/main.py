@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from database import init_db
+import models  # Import models to register SQLAlchemy tables
 from routes import auth, workouts, nutrition, progress, social
 
 # Initialize database on startup
