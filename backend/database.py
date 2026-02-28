@@ -13,8 +13,12 @@ load_dotenv()
 # and lead to function crashes. We prefer explicit env var.
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
-    # use sqlite for local dev only
-    DATABASE_URL = "sqlite:///./fittrack.db"
+    # use sqlite in-memory for serverless environments to avoid write errors
+    # local development may still use file if desired, but we default to memory
+    if os.getenv("ENVIRONMENT") == "production":
+        DATABASE_URL = "sqlite:///:memory:"
+    else:
+        DATABASE_URL = "sqlite:///./fittrack.db"
 
 # Configure engine based on database type
 if DATABASE_URL.startswith("postgresql"):
