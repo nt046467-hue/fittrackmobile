@@ -2,10 +2,10 @@ from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List, Optional
-from database import get_db
-from auth_utils import get_current_user
-from ai_engine import generate_recommendation, get_predefined_workouts
-from models import Workout, User
+from backend.database import get_db
+from backend.auth_utils import get_current_user
+from backend.ai_engine import generate_recommendation, get_predefined_workouts
+from backend.models import Workout, User
 from sqlalchemy import func
 import json
 from datetime import datetime, timedelta

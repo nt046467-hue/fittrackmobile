@@ -3,9 +3,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from pydantic import BaseModel
 from typing import Optional
-from database import get_db
-from auth_utils import get_current_user
-from models import Post, PostLike, User
+from backend.database import get_db
+from backend.auth_utils import get_current_user
+from backend.models import Post, PostLike, User
 
 router = APIRouter()
 

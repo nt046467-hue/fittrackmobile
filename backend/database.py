@@ -3,7 +3,7 @@ from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import NullPool
 import os
 from dotenv import load_dotenv
-from models import Base
+from backend.models import Base
 
 load_dotenv()
 
