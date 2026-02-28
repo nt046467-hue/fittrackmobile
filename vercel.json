@@ -14,8 +14,6 @@
     }
   ],
   "env": {
-    "JWT_SECRET_KEY": "@JWT_SECRET_KEY",
-    "DATABASE_URL": "@DATABASE_URL",
     "ENVIRONMENT": "production"
   },
   "regions": ["iad1"]
