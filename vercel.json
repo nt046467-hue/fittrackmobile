@@ -1,12 +1,6 @@
 {
   "buildCommand": "pip install -r requirements.txt",
   "outputDirectory": ".",
-  "functions": {
-    "api/**/*.py": {
-      "runtime": "python@3.11",
-      "maxDuration": 30
-    }
-  },
   "routes": [
     {
       "src": "/(.*)",
@@ -15,6 +9,5 @@
   ],
   "env": {
     "ENVIRONMENT": "production"
-  },
-  "regions": ["iad1"]
+  }
 }
