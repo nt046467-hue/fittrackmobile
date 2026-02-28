@@ -15,11 +15,16 @@ from backend.database import init_db
 from backend import models  # Import models to register SQLAlchemy tables
 from backend.routes import auth, workouts, nutrition, progress, social
 
-# Initialize database on startup
-try:
-    init_db()
-except Exception as e:
-    print(f"Database initialization warning: {e}")
+# Database initialization will occur during FastAPI startup
+# any errors are logged but will not crash the function
+
+@app.on_event("startup")
+async def startup_event():
+    try:
+        init_db()
+    except Exception as e:
+        # log to stdout; Vercel logs will capture this
+        print(f"Database initialization warning: {e}")
 
 app = FastAPI(
     title="FitTrack API",

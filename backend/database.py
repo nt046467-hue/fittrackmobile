@@ -8,7 +8,13 @@ from backend.models import Base
 load_dotenv()
 
 # Get database URL from environment or use default
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./fittrack.db")
+# NOTE: In production (Vercel) you should set DATABASE_URL to a PostgreSQL
+# connection string. Falling back to SQLite on a read-only filesystem may fail
+# and lead to function crashes. We prefer explicit env var.
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    # use sqlite for local dev only
+    DATABASE_URL = "sqlite:///./fittrack.db"
 
 # Configure engine based on database type
 if DATABASE_URL.startswith("postgresql"):
