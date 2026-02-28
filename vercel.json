@@ -3,7 +3,7 @@
   "outputDirectory": ".",
   "functions": {
     "api/index.py": {
-      "runtime": "python@3.11",
+      "runtime": "python3.11",
       "maxDuration": 30
     }
   },
