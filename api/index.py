@@ -8,6 +8,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from asgiref.wsgi import build_environ, build_response
 
 # Import backend modules with proper paths
 from backend.database import init_db
@@ -87,3 +88,6 @@ async def global_exception_handler(request, exc):
             "type": type(exc).__name__
         }
     )
+
+# Export for Vercel serverless
+handler = app
