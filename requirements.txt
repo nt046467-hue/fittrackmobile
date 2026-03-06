@@ -7,3 +7,5 @@ passlib[bcrypt]==1.7.4
 python-multipart==0.0.6
 pydantic==1.10.13
 python-dotenv==1.0.0
+# jwt library used in backend/auth_utils
+PyJWT==2.8.0
