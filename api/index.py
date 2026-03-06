@@ -15,6 +15,14 @@ try:
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.responses import JSONResponse
 
+    # diagnostic version info
+    import fastapi as _fastapi_pkg
+    try:
+        import pydantic as _pydantic_pkg
+        print(f"[startup] FastAPI {_fastapi_pkg.__version__}, Pydantic {_pydantic_pkg.__version__}")
+    except ImportError:
+        print("[startup] Pydantic not installed")
+
     # Import backend modules with proper paths
     from backend.database import init_db
     from backend import models  # Import models to register SQLAlchemy tables
