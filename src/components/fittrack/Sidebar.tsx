@@ -13,6 +13,7 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
+  UserIcon,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -45,7 +46,7 @@ export default function Sidebar() {
         .join("")
         .toUpperCase()
         .slice(0, 2)
-    : "U";
+    : "";
 
   return (
     <motion.aside
@@ -125,8 +126,8 @@ export default function Sidebar() {
         >
           <Avatar className="h-9 w-9 shrink-0">
             <AvatarImage src={user?.photoURL} alt={user?.name} />
-            <AvatarFallback className="bg-brand/10 text-brand text-sm">
-              {initials}
+            <AvatarFallback className="bg-brand/10 text-brand">
+              {user?.photoURL ? initials : <UserIcon className="w-4 h-4" />}
             </AvatarFallback>
           </Avatar>
           {!collapsed && (

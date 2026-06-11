@@ -5,13 +5,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { Dumbbell, Mail, Lock, User, Zap } from "lucide-react";
 import { useFitTrackStore } from "@/store/fittrackStore";
@@ -20,6 +16,7 @@ import { toast } from "sonner";
 export default function AuthForm() {
   const { setUser } = useFitTrackStore();
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<"login" | "signup">("login");
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
   const [signupForm, setSignupForm] = useState({
     name: "",
@@ -81,6 +78,7 @@ export default function AuthForm() {
 
   const handleDemoLogin = () => {
     setLoginForm({ email: "demo@fittrack.com", password: "demo123" });
+    setActiveTab("login");
   };
 
   return (
@@ -108,100 +106,125 @@ export default function AuthForm() {
         </div>
 
         <Card className="border-border/50">
-          <CardHeader className="pb-4">
-            <Tabs defaultValue="login" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="login">Log In</TabsTrigger>
-                <TabsTrigger value="signup">Sign Up</TabsTrigger>
-              </TabsList>
+          {/* Tab Switcher */}
+          <div className="flex border-b border-border/50">
+            <button
+              onClick={() => setActiveTab("login")}
+              className={`flex-1 py-3.5 text-sm font-medium transition-colors relative ${
+                activeTab === "login"
+                  ? "text-brand"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Log In
+              {activeTab === "login" && (
+                <motion.div
+                  layoutId="auth-tab-indicator"
+                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand"
+                  transition={{ duration: 0.2 }}
+                />
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab("signup")}
+              className={`flex-1 py-3.5 text-sm font-medium transition-colors relative ${
+                activeTab === "signup"
+                  ? "text-brand"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Sign Up
+              {activeTab === "signup" && (
+                <motion.div
+                  layoutId="auth-tab-indicator"
+                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand"
+                  transition={{ duration: 0.2 }}
+                />
+              )}
+            </button>
+          </div>
 
-              <TabsContent value="login">
-                <CardTitle className="text-xl">Welcome back</CardTitle>
-                <CardDescription>
-                  Log in to continue tracking your fitness journey
-                </CardDescription>
-              </TabsContent>
-
-              <TabsContent value="signup">
-                <CardTitle className="text-xl">Create account</CardTitle>
-                <CardDescription>
-                  Start your fitness journey with FitTrack
-                </CardDescription>
-              </TabsContent>
-            </Tabs>
-          </CardHeader>
-
-          <CardContent>
-            <Tabs defaultValue="login" className="w-full">
-              {/* Login Form */}
-              <TabsContent value="login">
-                <form onSubmit={handleLogin} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="login-email">Email</Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="login-email"
-                        type="email"
-                        placeholder="you@example.com"
-                        className="pl-10"
-                        value={loginForm.email}
-                        onChange={(e) =>
-                          setLoginForm({ ...loginForm, email: e.target.value })
-                        }
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="login-password">Password</Label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="login-password"
-                        type="password"
-                        placeholder="••••••••"
-                        className="pl-10"
-                        value={loginForm.password}
-                        onChange={(e) =>
-                          setLoginForm({
-                            ...loginForm,
-                            password: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
-                  </div>
-                  <Button
-                    type="submit"
-                    className="w-full bg-brand hover:bg-brand/90 text-brand-foreground"
-                    disabled={loading}
-                  >
-                    {loading ? "Signing in..." : "Sign In"}
-                  </Button>
-                </form>
-
-                <div className="relative my-6">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t border-border" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-card px-2 text-muted-foreground">
-                      or
-                    </span>
-                  </div>
-                </div>
-
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={handleDemoLogin}
-                  type="button"
+          <CardContent className="pt-6">
+            <AnimatePresence mode="wait">
+              {activeTab === "login" ? (
+                <motion.div
+                  key="login"
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 10 }}
+                  transition={{ duration: 0.2 }}
                 >
-                  <Zap className="w-4 h-4 mr-2" />
-                  Demo Login
-                </Button>
-                {loginForm.email === "demo@fittrack.com" && (
-                  <AnimatePresence>
+                  <h2 className="text-xl font-bold mb-1">Welcome back</h2>
+                  <p className="text-sm text-muted-foreground mb-6">
+                    Log in to continue tracking your fitness journey
+                  </p>
+
+                  <form onSubmit={handleLogin} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="login-email">Email</Label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="login-email"
+                          type="email"
+                          placeholder="you@example.com"
+                          className="pl-10"
+                          value={loginForm.email}
+                          onChange={(e) =>
+                            setLoginForm({ ...loginForm, email: e.target.value })
+                          }
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="login-password">Password</Label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="login-password"
+                          type="password"
+                          placeholder="••••••••"
+                          className="pl-10"
+                          value={loginForm.password}
+                          onChange={(e) =>
+                            setLoginForm({
+                              ...loginForm,
+                              password: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+                    <Button
+                      type="submit"
+                      className="w-full bg-brand hover:bg-brand/90 text-brand-foreground"
+                      disabled={loading}
+                    >
+                      {loading ? "Signing in..." : "Sign In"}
+                    </Button>
+                  </form>
+
+                  <div className="relative my-6">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t border-border" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-card px-2 text-muted-foreground">
+                        or
+                      </span>
+                    </div>
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={handleDemoLogin}
+                    type="button"
+                  >
+                    <Zap className="w-4 h-4 mr-2" />
+                    Demo Login
+                  </Button>
+                  {loginForm.email === "demo@fittrack.com" && (
                     <motion.div
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: "auto" }}
@@ -212,80 +235,110 @@ export default function AuthForm() {
                         Demo credentials filled! Click Sign In to continue.
                       </p>
                     </motion.div>
-                  </AnimatePresence>
-                )}
-              </TabsContent>
+                  )}
 
-              {/* Signup Form */}
-              <TabsContent value="signup">
-                <form onSubmit={handleSignup} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-name">Name</Label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="signup-name"
-                        type="text"
-                        placeholder="Your name"
-                        className="pl-10"
-                        value={signupForm.name}
-                        onChange={(e) =>
-                          setSignupForm({
-                            ...signupForm,
-                            name: e.target.value,
-                          })
-                        }
-                      />
+                  <p className="text-xs text-center text-muted-foreground mt-6">
+                    Don&apos;t have an account?{" "}
+                    <button
+                      onClick={() => setActiveTab("signup")}
+                      className="text-brand hover:underline font-medium"
+                    >
+                      Sign up
+                    </button>
+                  </p>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="signup"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <h2 className="text-xl font-bold mb-1">Create account</h2>
+                  <p className="text-sm text-muted-foreground mb-6">
+                    Start your fitness journey with FitTrack
+                  </p>
+
+                  <form onSubmit={handleSignup} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="signup-name">Name</Label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="signup-name"
+                          type="text"
+                          placeholder="Your name"
+                          className="pl-10"
+                          value={signupForm.name}
+                          onChange={(e) =>
+                            setSignupForm({
+                              ...signupForm,
+                              name: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
                     </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-email">Email</Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="signup-email"
-                        type="email"
-                        placeholder="you@example.com"
-                        className="pl-10"
-                        value={signupForm.email}
-                        onChange={(e) =>
-                          setSignupForm({
-                            ...signupForm,
-                            email: e.target.value,
-                          })
-                        }
-                      />
+                    <div className="space-y-2">
+                      <Label htmlFor="signup-email">Email</Label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="signup-email"
+                          type="email"
+                          placeholder="you@example.com"
+                          className="pl-10"
+                          value={signupForm.email}
+                          onChange={(e) =>
+                            setSignupForm({
+                              ...signupForm,
+                              email: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
                     </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-password">Password</Label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="signup-password"
-                        type="password"
-                        placeholder="At least 6 characters"
-                        className="pl-10"
-                        value={signupForm.password}
-                        onChange={(e) =>
-                          setSignupForm({
-                            ...signupForm,
-                            password: e.target.value,
-                          })
-                        }
-                      />
+                    <div className="space-y-2">
+                      <Label htmlFor="signup-password">Password</Label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="signup-password"
+                          type="password"
+                          placeholder="At least 6 characters"
+                          className="pl-10"
+                          value={signupForm.password}
+                          onChange={(e) =>
+                            setSignupForm({
+                              ...signupForm,
+                              password: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
                     </div>
-                  </div>
-                  <Button
-                    type="submit"
-                    className="w-full bg-brand hover:bg-brand/90 text-brand-foreground"
-                    disabled={loading}
-                  >
-                    {loading ? "Creating account..." : "Create Account"}
-                  </Button>
-                </form>
-              </TabsContent>
-            </Tabs>
+                    <Button
+                      type="submit"
+                      className="w-full bg-brand hover:bg-brand/90 text-brand-foreground"
+                      disabled={loading}
+                    >
+                      {loading ? "Creating account..." : "Create Account"}
+                    </Button>
+                  </form>
+
+                  <p className="text-xs text-center text-muted-foreground mt-6">
+                    Already have an account?{" "}
+                    <button
+                      onClick={() => setActiveTab("login")}
+                      className="text-brand hover:underline font-medium"
+                    >
+                      Log in
+                    </button>
+                  </p>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </CardContent>
         </Card>
       </motion.div>
