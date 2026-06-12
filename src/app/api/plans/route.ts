@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: 'desc' },
     });
 
-    // Map to include exerciseName on each plan exercise
+    // Map to include exerciseName, recommendedRest, primaryMuscles, equipment on each plan exercise
     const plans = rawPlans.map((p) => ({
       ...p,
       days: p.days.map((d) => ({
@@ -41,6 +41,9 @@ export async function GET(request: NextRequest) {
         exercises: d.exercises.map((ex) => ({
           ...ex,
           exerciseName: ex.exercise?.name || ex.exerciseId,
+          recommendedRest: ex.exercise?.recommendedRest || 90,
+          primaryMuscles: ex.exercise?.primaryMuscles ? JSON.parse(ex.exercise.primaryMuscles) : [],
+          equipment: ex.exercise?.equipment || undefined,
         })),
       })),
     }));

@@ -3,7 +3,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { GripVertical, Plus, Trash2 } from "lucide-react";
+import { GripVertical, Plus, Trash2, Check, Timer } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { type WorkoutExerciseInput, type SetInput, useFitTrackStore } from "@/store/fittrackStore";
 import SetRow from "./SetRow";
 import { cn } from "@/lib/utils";
@@ -13,6 +14,10 @@ interface ExerciseCardProps {
   exerciseIndex: number;
   onUpdate: (updated: WorkoutExerciseInput) => void;
   onRemove: () => void;
+  targetSets?: number;
+  targetReps?: number;
+  recommendedRest?: number;
+  onSetComplete?: (setIndex: number) => void;
 }
 
 export default function ExerciseCard({
@@ -20,6 +25,10 @@ export default function ExerciseCard({
   exerciseIndex,
   onUpdate,
   onRemove,
+  targetSets,
+  targetReps,
+  recommendedRest,
+  onSetComplete,
 }: ExerciseCardProps) {
   const { unitSystem } = useFitTrackStore();
 
@@ -47,12 +56,13 @@ export default function ExerciseCard({
 
   const completedSets = exercise.sets.filter((s) => s.completed).length;
   const totalSets = exercise.sets.length;
+  const isAllDone = completedSets === totalSets && totalSets > 0;
 
   return (
     <Card
       className={cn(
         "border-border/50 transition-all",
-        completedSets === totalSets && totalSets > 0 && "border-accent-green/30"
+        isAllDone && "border-accent-green/30 bg-accent-green/5"
       )}
     >
       <CardHeader className="pb-2 pt-4 px-4">
@@ -64,13 +74,17 @@ export default function ExerciseCard({
             </CardTitle>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {completedSets === totalSets && totalSets > 0 && (
-              <Badge
-                variant="secondary"
-                className="bg-accent-green/10 text-accent-green text-[10px] px-1.5 py-0"
+            {isAllDone && (
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", stiffness: 300, damping: 15 }}
               >
-                Done
-              </Badge>
+                <Badge className="bg-accent-green text-white text-[10px] px-2 py-0.5 gap-1">
+                  <Check className="w-3 h-3" strokeWidth={3} />
+                  Done
+                </Badge>
+              </motion.div>
             )}
             <Button
               variant="ghost"
@@ -82,6 +96,39 @@ export default function ExerciseCard({
             </Button>
           </div>
         </div>
+
+        {/* Target info row + Set Progress pill */}
+        <div className="flex items-center justify-between pl-6 mt-1">
+          <div className="flex items-center gap-2">
+            {(targetSets || targetReps) && (
+              <span className="text-xs text-muted-foreground">
+                {targetSets || 3} sets × {targetReps || 10} reps
+              </span>
+            )}
+            {recommendedRest && (
+              <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
+                <span className="mx-1">·</span>
+                <Timer className="w-3 h-3" />
+                {recommendedRest >= 60
+                  ? `${Math.floor(recommendedRest / 60)}:${(recommendedRest % 60).toString().padStart(2, "0")}`
+                  : `${recommendedRest}s`}
+              </span>
+            )}
+          </div>
+          <Badge
+            variant="secondary"
+            className={cn(
+              "text-[10px] px-1.5 py-0 tabular-nums",
+              isAllDone
+                ? "bg-accent-green/10 text-accent-green"
+                : "bg-muted text-muted-foreground"
+            )}
+          >
+            {completedSets} / {totalSets} sets
+          </Badge>
+        </div>
+
+        {/* Muscle badges */}
         {exercise.primaryMuscles && exercise.primaryMuscles.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-1 pl-6">
             {exercise.primaryMuscles.map((muscle) => (
@@ -98,7 +145,7 @@ export default function ExerciseCard({
       </CardHeader>
       <CardContent className="px-4 pb-3">
         {/* Header Row */}
-        <div className="grid grid-cols-[40px_1fr_1fr_1fr_36px] items-center gap-2 py-1 px-2 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+        <div className="grid grid-cols-[40px_1fr_1fr_1fr_40px] items-center gap-2 py-1 px-2 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
           <span>Set</span>
           <span>Previous</span>
           <span>{unitSystem === "metric" ? "Kg" : "Lbs"}</span>
@@ -114,11 +161,12 @@ export default function ExerciseCard({
                 setNumber={idx + 1}
                 set={set}
                 onChange={(updated) => handleSetChange(idx, updated)}
+                onSetComplete={() => onSetComplete?.(idx)}
               />
               {exercise.sets.length > 1 && (
                 <button
                   onClick={() => removeSet(idx)}
-                  className="absolute right-0 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-danger p-0.5"
+                  className="absolute right-12 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-danger p-0.5"
                 >
                   <Trash2 className="w-3 h-3" />
                 </button>

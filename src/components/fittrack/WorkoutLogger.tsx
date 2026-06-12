@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useFitTrackStore, type WorkoutExerciseInput, type SetInput } from "@/store/fittrackStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -20,15 +20,13 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import ExerciseCard from "./ExerciseCard";
 import RestTimer from "./RestTimer";
+import WorkoutComplete from "./WorkoutComplete";
 import {
   Plus,
   Search,
   Timer,
   Save,
-  Copy,
-  X,
   Dumbbell,
-  ChevronDown,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -39,6 +37,9 @@ interface Exercise {
   primaryMuscles: string[];
   secondaryMuscles?: string[];
   equipment?: string;
+  targetSets?: number;
+  targetReps?: number;
+  recommendedRest?: number;
 }
 
 export default function WorkoutLogger() {
@@ -46,7 +47,6 @@ export default function WorkoutLogger() {
     user,
     currentWorkout,
     setCurrentWorkout,
-    updateCurrentWorkout,
     clearCurrentWorkout,
     unitSystem,
   } = useFitTrackStore();
@@ -57,7 +57,10 @@ export default function WorkoutLogger() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [exerciseModalOpen, setExerciseModalOpen] = useState(false);
   const [restTimerOpen, setRestTimerOpen] = useState(false);
+  const [restTimerSeconds, setRestTimerSeconds] = useState(90);
   const [saving, setSaving] = useState(false);
+  const [workoutCompleteOpen, setWorkoutCompleteOpen] = useState(false);
+  const [workoutStartTime] = useState(Date.now());
   const [workoutName, setWorkoutName] = useState(
     currentWorkout?.name || format(new Date(), "MMMM d") + " Workout"
   );
@@ -70,6 +73,9 @@ export default function WorkoutLogger() {
   const [workoutExercises, setWorkoutExercises] = useState<
     WorkoutExerciseInput[]
   >(currentWorkout?.exercises || []);
+
+  // Track exercise metadata (targetSets, targetReps, recommendedRest) per exerciseId
+  const [exerciseMeta, setExerciseMeta] = useState<Record<string, { targetSets: number; targetReps: number; recommendedRest: number }>>({});
 
   // Sync to store
   useEffect(() => {
@@ -125,13 +131,28 @@ export default function WorkoutLogger() {
 
   const addExercise = useCallback(
     (exercise: Exercise) => {
+      const defaultSets = exercise.targetSets || 3;
+      const defaultReps = exercise.targetReps || 10;
       const newEx: WorkoutExerciseInput = {
         exerciseId: exercise.id,
         exerciseName: exercise.name,
         primaryMuscles: exercise.primaryMuscles,
-        sets: [{ weight: 0, reps: 0, completed: false }],
+        sets: Array.from({ length: defaultSets }, () => ({
+          weight: 0,
+          reps: defaultReps,
+          completed: false,
+        })),
       };
       setWorkoutExercises((prev) => [...prev, newEx]);
+      // Store exercise metadata
+      setExerciseMeta((prev) => ({
+        ...prev,
+        [exercise.id]: {
+          targetSets: exercise.targetSets || 3,
+          targetReps: exercise.targetReps || 10,
+          recommendedRest: exercise.recommendedRest || 90,
+        },
+      }));
       setExerciseModalOpen(false);
       toast.success(`Added ${exercise.name}`);
     },
@@ -150,6 +171,34 @@ export default function WorkoutLogger() {
   const removeExercise = useCallback((index: number) => {
     setWorkoutExercises((prev) => prev.filter((_, i) => i !== index));
   }, []);
+
+  // Handle set completion — auto rest timer or workout complete
+  const handleSetComplete = useCallback(
+    (exerciseIndex: number, _setIndex: number) => {
+      const exercise = workoutExercises[exerciseIndex];
+      if (!exercise) return;
+
+      const completedSets = exercise.sets.filter((s) => s.completed).length;
+      const totalSets = exercise.sets.length;
+      const isLastSetOfExercise = completedSets >= totalSets;
+      const isLastExercise = exerciseIndex >= workoutExercises.length - 1;
+
+      if (isLastSetOfExercise && isLastExercise) {
+        // Workout complete! Show celebration
+        setWorkoutCompleteOpen(true);
+      } else if (isLastSetOfExercise) {
+        // Exercise done, move to next — no rest timer needed
+        // (user will naturally see the next exercise card)
+      } else {
+        // Auto rest timer between sets
+        const meta = exerciseMeta[exercise.exerciseId];
+        const restSec = meta?.recommendedRest || 90;
+        setRestTimerSeconds(restSec);
+        setRestTimerOpen(true);
+      }
+    },
+    [workoutExercises, exerciseMeta]
+  );
 
   const handleSave = async () => {
     if (!user) return toast.error("Not authenticated");
@@ -186,6 +235,7 @@ export default function WorkoutLogger() {
       setWorkoutDate(format(new Date(), "yyyy-MM-dd"));
       setWorkoutNotes("");
       setWorkoutExercises([]);
+      setWorkoutCompleteOpen(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save");
     } finally {
@@ -201,6 +251,18 @@ export default function WorkoutLogger() {
     (total, ex) => total + ex.sets.length,
     0
   );
+
+  const totalVolume = workoutExercises.reduce(
+    (total, ex) =>
+      total +
+      ex.sets.reduce(
+        (setTotal, s) => (s.completed ? setTotal + s.weight * s.reps : setTotal),
+        0
+      ),
+    0
+  );
+
+  const elapsedMinutes = Math.round((Date.now() - workoutStartTime) / 60000) || 1;
 
   return (
     <div className="space-y-4 pb-4">
@@ -230,18 +292,29 @@ export default function WorkoutLogger() {
 
       {/* Progress Indicator */}
       {totalSets > 0 && (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-            <div
-              className="h-full bg-accent-green rounded-full transition-all"
-              style={{
-                width: `${totalSets > 0 ? (completedCount / totalSets) * 100 : 0}%`,
-              }}
-            />
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+              <motion.div
+                className="h-full bg-accent-green rounded-full"
+                initial={{ width: 0 }}
+                animate={{
+                  width: `${totalSets > 0 ? (completedCount / totalSets) * 100 : 0}%`,
+                }}
+                transition={{ duration: 0.5, ease: "easeOut" }}
+              />
+            </div>
+            <span className="tabular-nums font-medium">
+              {completedCount}/{totalSets} sets
+            </span>
           </div>
-          <span>
-            {completedCount}/{totalSets} sets
-          </span>
+          {completedCount > 0 && (
+            <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+              <span>{totalVolume.toLocaleString()} {unitSystem === "metric" ? "kg" : "lbs"} volume</span>
+              <span>·</span>
+              <span>{elapsedMinutes} min</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -280,22 +353,29 @@ export default function WorkoutLogger() {
 
       {/* Exercises */}
       <AnimatePresence>
-        {workoutExercises.map((exercise, idx) => (
-          <motion.div
-            key={`${exercise.exerciseId}-${idx}`}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.2 }}
-          >
-            <ExerciseCard
-              exercise={exercise}
-              exerciseIndex={idx}
-              onUpdate={(updated) => updateExercise(idx, updated)}
-              onRemove={() => removeExercise(idx)}
-            />
-          </motion.div>
-        ))}
+        {workoutExercises.map((exercise, idx) => {
+          const meta = exerciseMeta[exercise.exerciseId];
+          return (
+            <motion.div
+              key={`${exercise.exerciseId}-${idx}`}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.2 }}
+            >
+              <ExerciseCard
+                exercise={exercise}
+                exerciseIndex={idx}
+                onUpdate={(updated) => updateExercise(idx, updated)}
+                onRemove={() => removeExercise(idx)}
+                targetSets={meta?.targetSets}
+                targetReps={meta?.targetReps}
+                recommendedRest={meta?.recommendedRest}
+                onSetComplete={(setIdx) => handleSetComplete(idx, setIdx)}
+              />
+            </motion.div>
+          );
+        })}
       </AnimatePresence>
 
       {/* Add Exercise */}
@@ -351,7 +431,7 @@ export default function WorkoutLogger() {
                           <p className="text-sm font-medium">
                             {exercise.name}
                           </p>
-                          <div className="flex gap-1 mt-0.5">
+                          <div className="flex items-center gap-2 mt-0.5">
                             {exercise.primaryMuscles.map((m) => (
                               <Badge
                                 key={m}
@@ -361,6 +441,9 @@ export default function WorkoutLogger() {
                                 {m}
                               </Badge>
                             ))}
+                            <span className="text-[9px] text-muted-foreground">
+                              {exercise.targetSets || 3}×{exercise.targetReps || 10} · Rest {exercise.recommendedRest || 90}s
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -378,6 +461,19 @@ export default function WorkoutLogger() {
       <RestTimer
         open={restTimerOpen}
         onClose={() => setRestTimerOpen(false)}
+        autoStartSeconds={restTimerSeconds}
+      />
+
+      {/* Workout Complete Celebration */}
+      <WorkoutComplete
+        open={workoutCompleteOpen}
+        onSave={handleSave}
+        onKeepEditing={() => setWorkoutCompleteOpen(false)}
+        totalSets={completedCount}
+        totalVolume={totalVolume}
+        durationMinutes={elapsedMinutes}
+        exerciseCount={workoutExercises.length}
+        unitSystem={unitSystem}
       />
     </div>
   );

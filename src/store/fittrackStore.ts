@@ -62,6 +62,10 @@ interface FitTrackState {
   // Unit system
   unitSystem: "metric" | "imperial";
   setUnitSystem: (system: "metric" | "imperial") => void;
+
+  // Active plan
+  activePlanId: string | null;
+  setActivePlanId: (id: string | null) => void;
 }
 
 export const useFitTrackStore = create<FitTrackState>()(
@@ -98,12 +102,17 @@ export const useFitTrackStore = create<FitTrackState>()(
       // Unit system
       unitSystem: "metric",
       setUnitSystem: (unitSystem) => set({ unitSystem }),
+
+      // Active plan
+      activePlanId: null,
+      setActivePlanId: (activePlanId) => set({ activePlanId }),
     }),
     {
       name: "fittrack-storage",
       partialize: (state) => ({
         user: state.user,
         unitSystem: state.unitSystem,
+        activePlanId: state.activePlanId,
       }),
     }
   )

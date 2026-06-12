@@ -49,6 +49,7 @@ import {
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import confetti from "canvas-confetti";
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -57,6 +58,7 @@ interface PlanExercise {
   exerciseName?: string;
   targetSets: number;
   targetReps: number;
+  recommendedRest?: number;
   primaryMuscles?: string[];
   equipment?: string;
 }
@@ -578,6 +580,7 @@ interface ExerciseLog {
   exerciseName: string;
   targetSets: number;
   targetReps: number;
+  recommendedRest: number;
   sets: SetLog[];
   done: boolean;
 }
@@ -603,6 +606,7 @@ function GuidedWorkoutSession({
       exerciseName: ex.exerciseName || "Exercise",
       targetSets: ex.targetSets,
       targetReps: ex.targetReps,
+      recommendedRest: ex.recommendedRest || 90,
       sets: Array.from({ length: ex.targetSets }, () => ({
         reps: ex.targetReps,
         weight: 0,
@@ -640,17 +644,43 @@ function GuidedWorkoutSession({
     };
   }, [timerRunning]);
 
+  // Track whether the rest-end beep has been played for this rest cycle
+  const restBeepPlayedRef = useRef(false);
+
   // Rest countdown
   useEffect(() => {
-    if (phase !== "resting") return;
+    if (phase !== "resting") {
+      restBeepPlayedRef.current = false;
+      return;
+    }
     if (restSeconds <= 0) {
-      setPhase("working");
-      setRestSeconds(90);
+      // Play beep sound when rest hits 0
+      if (!restBeepPlayedRef.current) {
+        restBeepPlayedRef.current = true;
+        try {
+          const ctx = new AudioContext();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.frequency.value = 800;
+          gain.gain.value = 0.3;
+          osc.start();
+          osc.stop(ctx.currentTime + 0.3);
+        } catch {
+          // Audio not available
+        }
+        // Auto-transition back to working phase after 2 seconds
+        setTimeout(() => {
+          setPhase("working");
+          setRestSeconds(currentEx.recommendedRest);
+        }, 2000);
+      }
       return;
     }
     const t = setTimeout(() => setRestSeconds((s) => s - 1), 1000);
     return () => clearTimeout(t);
-  }, [phase, restSeconds]);
+  }, [phase, restSeconds, currentEx.recommendedRest]);
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);
@@ -694,7 +724,8 @@ function GuidedWorkoutSession({
     } else {
       // Start rest timer before next set
       setPhase("resting");
-      setRestSeconds(90);
+      setRestSeconds(currentEx.recommendedRest);
+      restBeepPlayedRef.current = false;
       setCurrentSetIdx((s) => s + 1);
     }
   };
@@ -708,7 +739,7 @@ function GuidedWorkoutSession({
 
   const skipRest = () => {
     setPhase("working");
-    setRestSeconds(90);
+    setRestSeconds(currentEx.recommendedRest);
   };
 
   const startWorkout = () => {
@@ -740,6 +771,36 @@ function GuidedWorkoutSession({
     return totalSets > 0 ? Math.round((completedSets / totalSets) * 100) : 0;
   })();
 
+  // Confetti on workout-done phase
+  useEffect(() => {
+    if (phase === "workout-done") {
+      const duration = 2000;
+      const end = Date.now() + duration;
+
+      const frame = () => {
+        confetti({
+          particleCount: 3,
+          angle: 60,
+          spread: 55,
+          origin: { x: 0 },
+          colors: ["#00C853", "#FFD600", "#FF6D00"],
+        });
+        confetti({
+          particleCount: 3,
+          angle: 120,
+          spread: 55,
+          origin: { x: 1 },
+          colors: ["#00C853", "#FFD600", "#FF6D00"],
+        });
+
+        if (Date.now() < end) {
+          requestAnimationFrame(frame);
+        }
+      };
+      frame();
+    }
+  }, [phase]);
+
   // ─── Setup Phase ─────────────────────────────────────
   if (phase === "setup") {
     return (
@@ -769,7 +830,7 @@ function GuidedWorkoutSession({
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium truncate">{ex.exerciseName}</p>
                   <p className="text-[10px] text-muted-foreground">
-                    {ex.targetSets} sets × {ex.targetReps} reps
+                    {ex.targetSets} sets × {ex.targetReps} reps · {ex.recommendedRest || 90}s rest
                   </p>
                 </div>
                 {ex.primaryMuscles?.slice(0, 1).map((m) => (
@@ -864,7 +925,8 @@ function GuidedWorkoutSession({
 
   // ─── Rest Phase ──────────────────────────────────────
   if (phase === "resting") {
-    const restProgress = Math.max(0, (90 - restSeconds) / 90) * 100;
+    const restTotal = currentEx.recommendedRest;
+    const restProgress = Math.max(0, (restTotal - restSeconds) / restTotal) * 100;
     const circumference = 2 * Math.PI * 54;
     const strokeDashoffset = circumference - (restProgress / 100) * circumference;
 
@@ -1021,9 +1083,16 @@ function GuidedWorkoutSession({
               <div>
                 <h2 className="text-lg font-bold">{currentEx.exerciseName}</h2>
                 <div className="flex items-center gap-1.5 mt-1">
-                  {currentEx.sets[0]?.weight !== undefined && (
-                    <span className="text-xs text-muted-foreground">{unitSystem === "metric" ? "kg" : "lbs"}</span>
-                  )}
+                  <span className="text-xs text-muted-foreground">
+                    {currentEx.targetSets} × {currentEx.targetReps} reps
+                  </span>
+                  <span className="text-xs text-muted-foreground">·</span>
+                  <span className="text-xs text-muted-foreground flex items-center gap-0.5">
+                    <Clock className="w-3 h-3" />
+                    {currentEx.recommendedRest}s rest
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 mt-1">
                   {day.exercises[currentExIdx]?.primaryMuscles?.map((m) => (
                     <span
                       key={m}

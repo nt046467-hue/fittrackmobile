@@ -30,6 +30,9 @@ model Exercise {
   secondaryMuscles String   @default("[]")
   equipment        String   @default("bodyweight")
   instructions     String?
+  targetSets       Int      @default(3)
+  targetReps       Int      @default(10)
+  recommendedRest  Int      @default(90)
   isCustom         Boolean  @default(false)
   createdById      String?
   createdAt        DateTime @default(now())

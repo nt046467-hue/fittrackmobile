@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, primaryMuscles, secondaryMuscles, equipment, instructions, createdById } = body;
+    const { name, primaryMuscles, secondaryMuscles, equipment, instructions, targetSets, targetReps, recommendedRest, createdById } = body;
 
     if (!name || !primaryMuscles || !equipment) {
       return NextResponse.json(
@@ -63,6 +63,9 @@ export async function POST(request: NextRequest) {
         secondaryMuscles: JSON.stringify(secondaryMuscles || []),
         equipment,
         instructions: instructions || null,
+        targetSets: targetSets || 3,
+        targetReps: targetReps || 10,
+        recommendedRest: recommendedRest || 90,
         isCustom: true,
         createdById: createdById || null,
       },

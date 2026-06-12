@@ -10,6 +10,7 @@ import { useFitTrackStore } from "@/store/fittrackStore";
 interface RestTimerProps {
   open: boolean;
   onClose: () => void;
+  autoStartSeconds?: number;
 }
 
 const presets = [
@@ -19,13 +20,28 @@ const presets = [
   { label: "180s", seconds: 180 },
 ];
 
-function TimerContent({ onClose }: { onClose: () => void }) {
+function TimerContent({ onClose, autoStartSeconds }: { onClose: () => void; autoStartSeconds?: number }) {
   const { restTimerSeconds, setRestTimer } = useFitTrackStore();
-  const [timeLeft, setTimeLeft] = useState(restTimerSeconds);
-  const [isRunning, setIsRunning] = useState(false);
+  const initialSeconds = autoStartSeconds || restTimerSeconds;
+  const [timeLeft, setTimeLeft] = useState(initialSeconds);
+  const [totalTime, setTotalTime] = useState(initialSeconds);
+  const [isRunning, setIsRunning] = useState(!!autoStartSeconds);
   const [customTime, setCustomTime] = useState("");
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const hasPlayedSound = useRef(false);
+  const hasAutoStarted = useRef(false);
+
+  // Auto-start from prop
+  useEffect(() => {
+    if (autoStartSeconds && !hasAutoStarted.current) {
+      hasAutoStarted.current = true;
+      setTimeLeft(autoStartSeconds);
+      setTotalTime(autoStartSeconds);
+      setRestTimer(true, autoStartSeconds);
+      setIsRunning(true);
+      hasPlayedSound.current = false;
+    }
+  }, [autoStartSeconds, setRestTimer]);
 
   // Timer countdown logic
   useEffect(() => {
@@ -77,6 +93,7 @@ function TimerContent({ onClose }: { onClose: () => void }) {
   const handlePreset = useCallback(
     (seconds: number) => {
       setTimeLeft(seconds);
+      setTotalTime(seconds);
       setRestTimer(true, seconds);
       setIsRunning(true);
       hasPlayedSound.current = false;
@@ -88,6 +105,7 @@ function TimerContent({ onClose }: { onClose: () => void }) {
     const seconds = parseInt(customTime);
     if (seconds > 0 && seconds <= 600) {
       setTimeLeft(seconds);
+      setTotalTime(seconds);
       setRestTimer(true, seconds);
       setIsRunning(true);
       setCustomTime("");
@@ -100,12 +118,12 @@ function TimerContent({ onClose }: { onClose: () => void }) {
   }, []);
 
   const resetTimer = useCallback(() => {
-    setTimeLeft(restTimerSeconds);
+    setTimeLeft(totalTime);
     setIsRunning(false);
     hasPlayedSound.current = false;
-  }, [restTimerSeconds]);
+  }, [totalTime]);
 
-  const progress = restTimerSeconds > 0 ? (timeLeft / restTimerSeconds) * 100 : 0;
+  const progress = totalTime > 0 ? (timeLeft / totalTime) * 100 : 0;
   const minutes = Math.floor(timeLeft / 60);
   const seconds = timeLeft % 60;
 
@@ -155,7 +173,10 @@ function TimerContent({ onClose }: { onClose: () => void }) {
             strokeLinecap="round"
             strokeDasharray={`${2 * Math.PI * 45}`}
             strokeDashoffset={`${2 * Math.PI * 45 * (1 - progress / 100)}`}
-            className="text-brand transition-all duration-1000"
+            className={cn(
+              "transition-all duration-1000",
+              timeLeft === 0 ? "text-accent-green" : "text-brand"
+            )}
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -197,12 +218,12 @@ function TimerContent({ onClose }: { onClose: () => void }) {
           <Button
             key={preset.seconds}
             variant={
-              restTimerSeconds === preset.seconds ? "default" : "outline"
+              totalTime === preset.seconds ? "default" : "outline"
             }
             size="sm"
             onClick={() => handlePreset(preset.seconds)}
             className={
-              restTimerSeconds === preset.seconds
+              totalTime === preset.seconds
                 ? "bg-brand text-brand-foreground"
                 : ""
             }
@@ -236,7 +257,11 @@ function TimerContent({ onClose }: { onClose: () => void }) {
   );
 }
 
-export default function RestTimer({ open, onClose }: RestTimerProps) {
+function cn(...classes: (string | boolean | undefined)[]) {
+  return classes.filter(Boolean).join(" ");
+}
+
+export default function RestTimer({ open, onClose, autoStartSeconds }: RestTimerProps) {
   return (
     <AnimatePresence>
       {open && (
@@ -247,9 +272,7 @@ export default function RestTimer({ open, onClose }: RestTimerProps) {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
           onClick={onClose}
         >
-          {/* Using key={open} would force remount each time, but since we only render when open=true,
-              we use a unique key based on a counter to reset state each time modal opens */}
-          <TimerContent onClose={onClose} />
+          <TimerContent onClose={onClose} autoStartSeconds={autoStartSeconds} />
         </motion.div>
       )}
     </AnimatePresence>
