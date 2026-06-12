@@ -53,7 +53,7 @@ interface Plan {
 }
 
 export default function Dashboard() {
-  const { user, setCurrentPage, unitSystem } = useFitTrackStore();
+  const { user, setCurrentPage, unitSystem, currentPage } = useFitTrackStore();
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -89,9 +89,12 @@ export default function Dashboard() {
     }
   }, [user]);
 
+  // Re-fetch every time user navigates TO dashboard (e.g. after finishing a plan workout)
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (currentPage === "dashboard") {
+      fetchData();
+    }
+  }, [currentPage, fetchData]);
 
   const totalWorkouts = workouts.length;
   const currentStreak = calculateStreak(workouts);

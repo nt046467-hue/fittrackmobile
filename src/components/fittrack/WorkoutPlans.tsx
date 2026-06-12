@@ -199,7 +199,7 @@ export default function WorkoutPlans() {
 
     // Save the workout to history
     try {
-      await fetch("/api/workouts", {
+      const res = await fetch("/api/workouts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -212,8 +212,14 @@ export default function WorkoutPlans() {
           })),
         }),
       });
-    } catch {
-      // Non-critical, continue
+      if (!res.ok) {
+        const err = await res.json();
+        console.error("Failed to save plan workout to history:", err);
+        toast.error("Workout completed but failed to save to history");
+      }
+    } catch (err) {
+      console.error("Save plan workout error:", err);
+      toast.error("Workout completed but failed to save to history");
     }
 
     // Mark the plan day as complete
