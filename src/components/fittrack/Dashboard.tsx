@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { useFitTrackStore } from "@/store/fittrackStore";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 import StatCard from "./StatCard";
 import {
   Dumbbell,
@@ -16,6 +17,8 @@ import {
   Ruler,
   CalendarCheck,
   ChevronRight,
+  RefreshCw,
+  Play,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -27,6 +30,7 @@ interface Workout {
   exercises: {
     exerciseId: string;
     exerciseName?: string;
+    primaryMuscles?: string[];
     sets: { reps: number; weight: number; completed: boolean }[];
   }[];
 }
@@ -39,7 +43,12 @@ interface Plan {
     id: string;
     dayOfWeek: number;
     name: string;
-    exercises: { exerciseId: string; targetSets: number; targetReps: number }[];
+    exercises: {
+      exerciseId: string;
+      exerciseName?: string;
+      targetSets: number;
+      targetReps: number;
+    }[];
   }[];
 }
 
@@ -48,32 +57,41 @@ export default function Dashboard() {
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
+
+  const fetchData = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
+    setFetchError(false);
+    try {
+      const [workoutsRes, plansRes] = await Promise.all([
+        fetch(`/api/workouts?userId=${user.id}`),
+        fetch(`/api/plans?userId=${user.id}`),
+      ]);
+      if (workoutsRes.ok) {
+        const data = await workoutsRes.json();
+        setWorkouts(data.workouts || []);
+      } else {
+        console.error("Failed to fetch workouts:", workoutsRes.status);
+      }
+      if (plansRes.ok) {
+        const data = await plansRes.json();
+        setPlans(data.plans || []);
+      }
+      if (!workoutsRes.ok || !plansRes.ok) {
+        setFetchError(true);
+      }
+    } catch (err) {
+      console.error("Dashboard fetch error:", err);
+      setFetchError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
 
   useEffect(() => {
-    if (!user) return;
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const [workoutsRes, plansRes] = await Promise.all([
-          fetch(`/api/workouts?userId=${user.id}`),
-          fetch(`/api/plans?userId=${user.id}`),
-        ]);
-        if (workoutsRes.ok) {
-          const data = await workoutsRes.json();
-          setWorkouts(data.workouts || []);
-        }
-        if (plansRes.ok) {
-          const data = await plansRes.json();
-          setPlans(data.plans || []);
-        }
-      } catch {
-        // Data will remain empty
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchData();
-  }, [user]);
+  }, [fetchData]);
 
   const totalWorkouts = workouts.length;
   const currentStreak = calculateStreak(workouts);
@@ -91,9 +109,10 @@ export default function Dashboard() {
     (d) => d.dayOfWeek === todayDayOfWeek
   );
 
-  // Weekly activity
+  // Weekly activity — use safe date parsing
   const thisWeekWorkouts = workouts.filter((w) => {
-    const d = new Date(w.date);
+    const d = new Date(w.date + "T00:00:00");
+    if (isNaN(d.getTime())) return false;
     const weekStart = new Date(today);
     weekStart.setDate(today.getDate() - todayDayOfWeek);
     weekStart.setHours(0, 0, 0, 0);
@@ -102,9 +121,13 @@ export default function Dashboard() {
 
   const weeklyActivity = Array(7).fill(0);
   thisWeekWorkouts.forEach((w) => {
-    const d = new Date(w.date);
-    weeklyActivity[d.getDay()] = 1;
+    const d = new Date(w.date + "T00:00:00");
+    if (!isNaN(d.getTime())) {
+      weeklyActivity[d.getDay()] = 1;
+    }
   });
+
+  const hasNoData = workouts.length === 0;
 
   if (loading) {
     return <DashboardSkeleton />;
@@ -115,38 +138,77 @@ export default function Dashboard() {
       {/* Welcome */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight">
-          Welcome back, {user?.name?.split(" ")[0] || "Athlete"} 👋
+          Welcome back, {user?.name?.split(" ")[0] || "Athlete"}
         </h1>
         <p className="text-muted-foreground">
           {format(today, "EEEE, MMMM d")}
         </p>
       </div>
 
-      {/* Stat Cards */}
+      {/* Fetch Error with Retry */}
+      {fetchError && (
+        <Card className="border-danger/20 bg-danger/5">
+          <CardContent className="p-4 flex items-center justify-between">
+            <p className="text-sm text-danger">
+              Failed to load some data. Pull to refresh or try again.
+            </p>
+            <Button variant="outline" size="sm" onClick={fetchData}>
+              <RefreshCw className="w-3 h-3 mr-1" />
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Stat Cards — show -- for no data instead of 0 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard
           icon={Dumbbell}
           label="Total Workouts"
-          value={totalWorkouts}
+          value={hasNoData ? "--" : totalWorkouts}
           variant="brand"
         />
         <StatCard
           icon={Flame}
           label="Current Streak"
-          value={`${currentStreak} day${currentStreak !== 1 ? "s" : ""}`}
+          value={hasNoData ? "--" : `${currentStreak} day${currentStreak !== 1 ? "s" : ""}`}
           variant="accent"
         />
         <StatCard
           icon={TrendingUp}
           label="All-time Volume"
-          value={`${totalVolume.toLocaleString()} ${unitSystem === "metric" ? "kg" : "lbs"}`}
+          value={hasNoData ? "--" : `${totalVolume.toLocaleString()} ${unitSystem === "metric" ? "kg" : "lbs"}`}
         />
         <StatCard
           icon={Trophy}
           label="Heaviest Lift"
-          value={`${heaviestLift} ${unitSystem === "metric" ? "kg" : "lbs"}`}
+          value={hasNoData ? "--" : `${heaviestLift} ${unitSystem === "metric" ? "kg" : "lbs"}`}
         />
       </div>
+
+      {/* Empty State CTA — when no workouts exist */}
+      {hasNoData && (
+        <Card className="border-brand/20 bg-brand/5 overflow-hidden">
+          <CardContent className="p-6 flex flex-col items-center text-center gap-3">
+            <div className="w-16 h-16 rounded-full bg-brand/10 flex items-center justify-center">
+              <Dumbbell className="w-8 h-8 text-brand" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-lg">Log your first workout</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Track your exercises, sets, and reps to start seeing your progress here.
+              </p>
+            </div>
+            <Button
+              onClick={() => setCurrentPage("log")}
+              className="bg-brand hover:bg-brand/90 text-brand-foreground"
+            >
+              <Play className="w-4 h-4 mr-2" />
+              Start Workout
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Quick Actions */}
       <div className="grid grid-cols-2 gap-3">
@@ -198,14 +260,14 @@ export default function Dashboard() {
         </CardContent>
       </Card>
 
-      {/* Today's Plan */}
+      {/* Today's Plan — Enhanced with exercise names */}
       {todaysPlanDay && (
         <Card className="border-brand/20 bg-brand/5">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <CalendarCheck className="w-4 h-4 text-brand" />
-                Today&apos;s Plan
+                Today&apos;s Plan — {todaysPlanDay.name}
               </CardTitle>
               <Button
                 variant="ghost"
@@ -217,12 +279,39 @@ export default function Dashboard() {
               </Button>
             </div>
           </CardHeader>
-          <CardContent>
-            <p className="text-sm font-medium">{todaysPlanDay.name}</p>
+          <CardContent className="space-y-3">
             <p className="text-xs text-muted-foreground">
               {todaysPlanDay.exercises.length} exercise
               {todaysPlanDay.exercises.length !== 1 ? "s" : ""} planned
             </p>
+            {/* Show exercise names */}
+            <div className="flex flex-wrap gap-1.5">
+              {todaysPlanDay.exercises.slice(0, 3).map((ex, i) => (
+                <Badge
+                  key={i}
+                  variant="secondary"
+                  className="text-[10px] px-1.5 py-0.5 bg-brand/10 text-brand"
+                >
+                  {ex.exerciseName || `Exercise ${i + 1}`}
+                </Badge>
+              ))}
+              {todaysPlanDay.exercises.length > 3 && (
+                <Badge
+                  variant="secondary"
+                  className="text-[10px] px-1.5 py-0.5 bg-muted text-muted-foreground"
+                >
+                  +{todaysPlanDay.exercises.length - 3} more
+                </Badge>
+              )}
+            </div>
+            <Button
+              size="sm"
+              className="w-full bg-brand hover:bg-brand/90 text-brand-foreground"
+              onClick={() => setCurrentPage("plans")}
+            >
+              <Play className="w-3 h-3 mr-1" />
+              Start This Workout
+            </Button>
           </CardContent>
         </Card>
       )}
@@ -234,43 +323,88 @@ export default function Dashboard() {
             <CardTitle className="text-sm font-semibold">
               Recent Workouts
             </CardTitle>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-xs text-brand"
-              onClick={() => setCurrentPage("history")}
-            >
-              View All
-              <ChevronRight className="w-3 h-3 ml-0.5" />
-            </Button>
+            {workouts.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs text-brand"
+                onClick={() => setCurrentPage("history")}
+              >
+                View All
+                <ChevronRight className="w-3 h-3 ml-0.5" />
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent>
           {recentWorkouts.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4 text-center">
-              No workouts yet. Start your first one!
-            </p>
+            <div className="py-6 text-center">
+              <p className="text-sm text-muted-foreground mb-3">
+                No workouts yet
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage("log")}
+              >
+                <Plus className="w-3 h-3 mr-1" />
+                Log your first workout
+              </Button>
+            </div>
           ) : (
             <div className="space-y-2">
-              {recentWorkouts.map((workout, idx) => (
-                <motion.div
-                  key={workout.id || idx}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.05 }}
-                  className="flex items-center justify-between p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
-                >
-                  <div>
-                    <p className="text-sm font-medium">{workout.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {format(new Date(workout.date), "MMM d, yyyy")} ·{" "}
-                      {workout.exercises.length} exercise
-                      {workout.exercises.length !== 1 ? "s" : ""}
-                    </p>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                </motion.div>
-              ))}
+              {recentWorkouts.map((workout, idx) => {
+                const workoutVolume = workout.exercises.reduce(
+                  (total, ex) =>
+                    total +
+                    ex.sets.reduce(
+                      (sTotal, s) =>
+                        s.completed ? sTotal + s.weight * s.reps : sTotal,
+                      0
+                    ),
+                  0
+                );
+                const completedSets = workout.exercises.reduce(
+                  (total, ex) =>
+                    total + ex.sets.filter((s) => s.completed).length,
+                  0
+                );
+                return (
+                  <motion.div
+                    key={workout.id || idx}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.05 }}
+                    className="flex items-center justify-between p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">
+                        {workout.name}
+                      </p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-xs text-muted-foreground">
+                          {format(new Date(workout.date + "T00:00:00"), "MMM d")}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {workout.exercises.length} exercise
+                          {workout.exercises.length !== 1 ? "s" : ""}
+                        </span>
+                        {workoutVolume > 0 && (
+                          <span className="text-xs text-muted-foreground">
+                            {workoutVolume.toLocaleString()} {unitSystem === "metric" ? "kg" : "lbs"}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                        {completedSets} sets
+                      </Badge>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                  </motion.div>
+                );
+              })}
             </div>
           )}
         </CardContent>
@@ -304,10 +438,15 @@ function DashboardSkeleton() {
 function calculateStreak(workouts: Workout[]): number {
   if (workouts.length === 0) return 0;
   const sortedDates = workouts
-    .map((w) => new Date(w.date).toDateString())
-    .filter((v, i, a) => a.indexOf(v) === i)
+    .map((w) => {
+      const d = new Date(w.date + "T00:00:00");
+      return isNaN(d.getTime()) ? null : d.toDateString();
+    })
+    .filter((v, i, a): v is string => v !== null && a.indexOf(v) === i)
     .map((d) => new Date(d))
     .sort((a, b) => b.getTime() - a.getTime());
+
+  if (sortedDates.length === 0) return 0;
 
   let streak = 1;
   const today = new Date();
@@ -344,8 +483,7 @@ function calculateTotalVolume(
           exTotal +
           ex.sets.reduce((setTotal, set) => {
             if (!set.completed) return setTotal;
-            const weight =
-              unitSystem === "imperial" ? set.weight * 0.453592 : set.weight;
+            const weight = set.weight; // Keep in original unit for display consistency
             return setTotal + weight * set.reps;
           }, 0)
         );
@@ -356,7 +494,7 @@ function calculateTotalVolume(
 
 function calculateHeaviestLift(
   workouts: Workout[],
-  unitSystem: string
+  _unitSystem: string
 ): number {
   let heaviest = 0;
   workouts.forEach((workout) => {

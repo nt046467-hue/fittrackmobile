@@ -19,7 +19,7 @@ import {
   Trash2,
   Dumbbell,
 } from "lucide-react";
-import { format, parseISO, startOfWeek, addDays, isSameDay } from "date-fns";
+import { format, startOfWeek, addDays, isSameDay } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -105,7 +105,10 @@ export default function WorkoutHistory() {
   );
   const workoutsByDay = weekDays.map((day) => ({
     day,
-    workouts: workouts.filter((w) => isSameDay(parseISO(w.date), day)),
+    workouts: workouts.filter((w) => {
+      const d = new Date(w.date + 'T00:00:00');
+      return !isNaN(d.getTime()) && isSameDay(d, day);
+    }),
   }));
 
   const unit = unitSystem === "metric" ? "kg" : "lbs";
@@ -295,7 +298,7 @@ export default function WorkoutHistory() {
                           </div>
                           <div className="flex items-center gap-2 mt-1">
                             <span className="text-xs text-muted-foreground">
-                              {format(parseISO(workout.date), "MMM d, yyyy")}
+                              {format(new Date(workout.date + 'T00:00:00'), "MMM d, yyyy")}
                             </span>
                             <span className="text-xs text-muted-foreground">
                               · {workout.exercises.length} exercise
@@ -338,7 +341,7 @@ export default function WorkoutHistory() {
                               className="bg-muted/30 rounded-lg p-3"
                             >
                               <p className="text-xs font-semibold mb-1">
-                                {ex.exerciseName || `Exercise ${exIdx + 1}`}
+                                {ex.exerciseName ?? 'Unknown Exercise'}
                               </p>
                               <div className="grid grid-cols-3 gap-1 text-[10px] text-muted-foreground mb-1">
                                 <span>Set</span>

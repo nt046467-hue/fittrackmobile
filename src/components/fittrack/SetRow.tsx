@@ -13,7 +13,7 @@ interface SetRowProps {
   onChange: (updated: SetInput) => void;
   previousWeight?: number;
   previousReps?: number;
-  onSetComplete?: () => void;
+  onSetComplete?: (setIndex: number, completed: boolean) => void;
 }
 
 export default function SetRow({
@@ -35,7 +35,7 @@ export default function SetRow({
     if (newCompleted) {
       setFlashGreen(true);
       setTimeout(() => setFlashGreen(false), 300);
-      onSetComplete?.();
+      onSetComplete?.(setNumber - 1, newCompleted);  // Pass values directly to avoid stale state
     }
   };
 

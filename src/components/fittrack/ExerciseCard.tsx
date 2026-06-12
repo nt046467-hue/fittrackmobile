@@ -17,7 +17,7 @@ interface ExerciseCardProps {
   targetSets?: number;
   targetReps?: number;
   recommendedRest?: number;
-  onSetComplete?: (setIndex: number) => void;
+  onSetComplete?: (setIndex: number, completed: boolean) => void;
 }
 
 export default function ExerciseCard({
@@ -161,7 +161,7 @@ export default function ExerciseCard({
                 setNumber={idx + 1}
                 set={set}
                 onChange={(updated) => handleSetChange(idx, updated)}
-                onSetComplete={() => onSetComplete?.(idx)}
+                onSetComplete={(setIdx, completed) => onSetComplete?.(setIdx, completed)}
               />
               {exercise.sets.length > 1 && (
                 <button

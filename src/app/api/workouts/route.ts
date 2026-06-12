@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
       date: w.date.toISOString().split('T')[0],
       exercises: w.exercises.map((ex) => ({
         ...ex,
-        exerciseName: ex.exercise?.name || undefined,
+        exerciseName: ex.exercise?.name || 'Unknown Exercise',
         primaryMuscles: ex.exercise?.primaryMuscles
           ? JSON.parse(ex.exercise.primaryMuscles)
           : [],

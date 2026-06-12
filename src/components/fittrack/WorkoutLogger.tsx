@@ -174,27 +174,30 @@ export default function WorkoutLogger() {
 
   // Handle set completion — auto rest timer or workout complete
   const handleSetComplete = useCallback(
-    (exerciseIndex: number, _setIndex: number) => {
+    (exerciseIndex: number, setIndex: number, _completed?: boolean) => {
       const exercise = workoutExercises[exerciseIndex];
       if (!exercise) return;
 
-      const completedSets = exercise.sets.filter((s) => s.completed).length;
+      // Count completed sets INCLUDING the just-completed one
+      // The set was already marked completed in state by onChange before this fires
+      const nowCompleted = exercise.sets.filter((s, i) =>
+        i === setIndex ? true : s.completed
+      ).length;
       const totalSets = exercise.sets.length;
-      const isLastSetOfExercise = completedSets >= totalSets;
+      const isLastSetOfExercise = nowCompleted >= totalSets;
       const isLastExercise = exerciseIndex >= workoutExercises.length - 1;
 
       if (isLastSetOfExercise && isLastExercise) {
-        // Workout complete! Show celebration
-        setWorkoutCompleteOpen(true);
+        // Workout complete! Show celebration after a brief delay for animation
+        setTimeout(() => setWorkoutCompleteOpen(true), 400);
       } else if (isLastSetOfExercise) {
         // Exercise done, move to next — no rest timer needed
-        // (user will naturally see the next exercise card)
       } else {
-        // Auto rest timer between sets
+        // Auto rest timer between sets after a brief delay for green flash animation
         const meta = exerciseMeta[exercise.exerciseId];
         const restSec = meta?.recommendedRest || 90;
         setRestTimerSeconds(restSec);
-        setRestTimerOpen(true);
+        setTimeout(() => setRestTimerOpen(true), 300);
       }
     },
     [workoutExercises, exerciseMeta]
@@ -371,7 +374,7 @@ export default function WorkoutLogger() {
                 targetSets={meta?.targetSets}
                 targetReps={meta?.targetReps}
                 recommendedRest={meta?.recommendedRest}
-                onSetComplete={(setIdx) => handleSetComplete(idx, setIdx)}
+                onSetComplete={(setIdx, completed) => handleSetComplete(idx, setIdx, completed)}
               />
             </motion.div>
           );

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { X, Play, Pause, RotateCcw, Timer } from "lucide-react";
 import { useFitTrackStore } from "@/store/fittrackStore";
+import { cn } from "@/lib/utils";
 
 interface RestTimerProps {
   open: boolean;
@@ -75,6 +76,10 @@ function TimerContent({ onClose, autoStartSeconds }: { onClose: () => void; auto
             } catch {
               // Audio not available
             }
+            // Auto-close after showing "Done!" for 1.5s
+            setTimeout(() => {
+              onClose();
+            }, 1500);
           }
           return 0;
         }
@@ -255,10 +260,6 @@ function TimerContent({ onClose, autoStartSeconds }: { onClose: () => void; auto
       </div>
     </motion.div>
   );
-}
-
-function cn(...classes: (string | boolean | undefined)[]) {
-  return classes.filter(Boolean).join(" ");
 }
 
 export default function RestTimer({ open, onClose, autoStartSeconds }: RestTimerProps) {

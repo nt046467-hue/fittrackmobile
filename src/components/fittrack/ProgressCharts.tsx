@@ -19,10 +19,8 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  ResponsiveContainer,
 } from "recharts";
-import { BarChart3 } from "lucide-react";
-import { format, parseISO, subMonths, startOfWeek, addDays } from "date-fns";
+import { format, subMonths, startOfWeek } from "date-fns";
 
 type TimeRange = "1M" | "3M" | "6M" | "1Y" | "All";
 
@@ -98,39 +96,56 @@ export default function ProgressCharts() {
     fetchData();
   }, [user]);
 
+  // Safe date parser that handles both YYYY-MM-DD strings and ISO dates
+  const safeDate = (dateStr: string): Date | null => {
+    const d = new Date(dateStr + 'T00:00:00');
+    if (isNaN(d.getTime())) return null;
+    return d;
+  };
+
   const filteredData = useMemo(() => {
     if (timeRange === "All") return workouts;
     const months = { "1M": 1, "3M": 3, "6M": 6, "1Y": 12 }[timeRange] || 3;
     const cutoff = subMonths(new Date(), months);
-    return workouts.filter((w) => new Date(w.date) >= cutoff);
+    return workouts.filter((w) => {
+      const d = safeDate(w.date);
+      return d ? d >= cutoff : false;
+    });
   }, [workouts, timeRange]);
 
   // Volume per session
   const volumeData = useMemo(() => {
-    return filteredData
-      .map((w) => ({
-        date: format(parseISO(w.date), "MMM d"),
-        volume: Math.round(
-          w.exercises.reduce(
-            (total, ex) =>
-              total +
-              ex.sets.reduce(
-                (sTotal, s) => (s.completed ? sTotal + s.weight * s.reps : sTotal),
-                0
-              ),
-            0
-          )
-        ),
-      }))
-      .reverse();
+    return (filteredData
+      .map((w) => {
+        const d = safeDate(w.date);
+        if (!d) return null;
+        return {
+          date: format(d, "MMM d"),
+          volume: Math.round(
+            w.exercises.reduce(
+              (total, ex) =>
+                total +
+                ex.sets.reduce(
+                  (sTotal, s) => (s.completed ? sTotal + s.weight * s.reps : sTotal),
+                  0
+                ),
+              0
+            )
+          ),
+        };
+      })
+      .filter((v): v is { date: string; volume: number } => v !== null)
+      .reverse());
   }, [filteredData]);
 
   // Workouts per week
   const frequencyData = useMemo(() => {
     const weekMap = new Map<string, number>();
     filteredData.forEach((w) => {
+      const d = safeDate(w.date);
+      if (!d) return;
       const weekStart = format(
-        startOfWeek(parseISO(w.date), { weekStartsOn: 0 }),
+        startOfWeek(d, { weekStartsOn: 0 }),
         "MMM d"
       );
       weekMap.set(weekStart, (weekMap.get(weekStart) || 0) + 1);
@@ -147,6 +162,8 @@ export default function ProgressCharts() {
       { name: string; data: { date: string; weight: number }[] }
     >();
     filteredData.forEach((w) => {
+      const d = safeDate(w.date);
+      if (!d) return;
       w.exercises.forEach((ex) => {
         const name = ex.exerciseName || ex.exerciseId;
         const maxWeight = Math.max(...ex.sets.map((s) => s.weight), 0);
@@ -155,7 +172,7 @@ export default function ProgressCharts() {
           exercisePRs.set(ex.exerciseId, { name, data: [] });
         }
         exercisePRs.get(ex.exerciseId)!.data.push({
-          date: format(parseISO(w.date), "MMM d"),
+          date: format(d, "MMM d"),
           weight: maxWeight,
         });
       });
@@ -165,12 +182,17 @@ export default function ProgressCharts() {
 
   // Body weight over time
   const bodyWeightData = useMemo(() => {
-    return metrics
-      .map((m) => ({
-        date: format(parseISO(m.date), "MMM d"),
-        weight: m.weight,
-      }))
-      .reverse();
+    return (metrics
+      .map((m) => {
+        const d = safeDate(m.date);
+        if (!d) return null;
+        return {
+          date: format(d, "MMM d"),
+          weight: m.weight,
+        };
+      })
+      .filter((v): v is { date: string; weight: number } => v !== null)
+      .reverse());
   }, [metrics]);
 
   // Muscle frequency heatmap
